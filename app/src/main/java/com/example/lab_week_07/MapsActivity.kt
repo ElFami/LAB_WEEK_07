@@ -16,7 +16,9 @@ import androidx.appcompat.app.AlertDialog
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import androidx.core.content.ContextCompat
 import android.util.Log
-
+import android.location.Location
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -24,70 +26,78 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private lateinit var binding: ActivityMapsBinding
 
+    private val fusedLocationProviderClient by lazy {
+        LocationServices.getFusedLocationProviderClient(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        val mapFragment = supportFragmentManager
-            .findFragmentById(R.id.map) as SupportMapFragment
+        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
         requestPermissionLauncher =
-            registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-                    isGranted -> if (isGranted) {
-                //If granted by the user, execute the necessary function
-                getLastLocation()
-            } else {
-                        showPermissionRationale {
-                            requestPermissionLauncher.launch(ACCESS_FINE_LOCATION)
-                        }
-            }
-            }
-    }
-
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
-    override fun onMapReady(googleMap: GoogleMap) {
-        mMap = googleMap
-
-        //If it's not granted yet, then the rationale dialog will be brought up
-        when {
-            hasLocationPermission() -> getLastLocation()
-                    //If it has, then the rationale dialog will be brought up
-                    shouldShowRequestPermissionRationale(ACCESS_FINE_LOCATION) -> {
-                showPermissionRationale {
-                    requestPermissionLauncher
-                        .launch(ACCESS_FINE_LOCATION)
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+                if (isGranted) {
+                    getLastLocation()
+                } else {
+                    showPermissionRationale {
+                        requestPermissionLauncher.launch(ACCESS_FINE_LOCATION)
+                    }
                 }
             }
-            else -> requestPermissionLauncher
-                .launch(ACCESS_FINE_LOCATION)
-        }
-    }
-    private fun hasLocationPermission() =
-        ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
-    private fun showPermissionRationale(positiveAction: () -> Unit) {
-                AlertDialog.Builder(this)
-                    .setTitle("Location permission")
-                    .setMessage("This app will not work without knowing your current location")
-                    .setPositiveButton(android.R.string.ok) { _, _ -> positiveAction() }
-                    .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss()
-                    }
-                    .create().show()
-    }
-    private fun getLastLocation() {
-        Log.d("MapsActivity", "getLastLocation() called.")
     }
 
+    override fun onMapReady(googleMap: GoogleMap) {
+        mMap = googleMap
+        when {
+            hasLocationPermission() -> getLastLocation()
+            shouldShowRequestPermissionRationale(ACCESS_FINE_LOCATION) -> {
+                showPermissionRationale {
+                    requestPermissionLauncher.launch(ACCESS_FINE_LOCATION)
+                }
+            }
+            else -> requestPermissionLauncher.launch(ACCESS_FINE_LOCATION)
+        }
+    }
+
+    private fun hasLocationPermission() =
+        ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    private fun showPermissionRationale(positiveAction: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle("Location permission")
+            .setMessage("This app will not work without knowing your current location")
+            .setPositiveButton(android.R.string.ok) { _, _ -> positiveAction() }
+            .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+            .create().show()
+    }
+
+    private fun getLastLocation() {
+        if (hasLocationPermission()) {
+            try {
+                fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
+                    location?.let {
+                        val userLocation = LatLng(location.latitude, location.longitude)
+                        updateMapLocation(userLocation)
+                        addMarkerAtLocation(userLocation, "You")
+                    }
+                }
+            } catch (e: SecurityException) {
+                Log.e("MapsActivity", "SecurityException: ${e.message}")
+            }
+        } else {
+            requestPermissionLauncher.launch(ACCESS_FINE_LOCATION)
+        }
+    }
+
+    private fun updateMapLocation(location: LatLng) {
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(location, 7f))
+    }
+
+    private fun addMarkerAtLocation(location: LatLng, title: String) {
+        mMap.addMarker(MarkerOptions().title(title).position(location))
+    }
 }
