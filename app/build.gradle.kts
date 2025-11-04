@@ -1,7 +1,13 @@
+// In C:/Users/Sanders/AndroidStudioProjects/LAB_WEEK_072/app/build.gradle.kts
+
 plugins {
+    // Apply the plugins directly to this module by removing "apply false"
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.google.android.libraries.mapsplatform.secrets.gradle.plugin)
+
+    // You can remove the kotlin.compose plugin if you are not using Jetpack Compose
+    // alias(libs.plugins.kotlin.compose)
 }
 
 android {
